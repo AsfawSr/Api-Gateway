@@ -1,0 +1,266 @@
+{
+  "info": {
+    "name": "API Gateway Learning – Complete Collection",
+    "description": "Complete Postman collection for the API Gateway Learning project.\nAll requests go through the API Gateway at http://localhost:8080.\n\nUsage:\n1. Run 'Register User' first\n2. Run 'Login User' – the token is auto-saved to {{jwt_token}}\n3. Use other endpoints (they use {{jwt_token}} automatically)",
+    "_postman_id": "api-gateway-learning-v1",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl",   "value": "http://localhost:8080" },
+    { "key": "jwt_token", "value": "" }
+  ],
+  "event": [],
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api","auth","register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"testuser@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login User (auto-save token)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "var resp = pm.response.json();",
+                "if (resp.data && resp.data.token) {",
+                "  pm.collectionVariables.set('jwt_token', resp.data.token);",
+                "  console.log('Token saved:', resp.data.token.substring(0,20) + '...');",
+                "}"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 Users",
+      "item": [
+        {
+          "name": "Get All Users (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api","users"] }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/users/1", "host": ["{{baseUrl}}"], "path": ["api","users","1"] }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/users/1", "host": ["{{baseUrl}}"], "path": ["api","users","1"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"updated@example.com\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📦 Products",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api","products"] }
+          }
+        },
+        {
+          "name": "Get Products by Category",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/products?category=Electronics", "host": ["{{baseUrl}}"], "path": ["api","products"], "query": [{ "key": "category", "value": "Electronics" }] }
+          }
+        },
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api","products"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Samsung Galaxy S25\",\n  \"description\": \"Latest Samsung flagship phone\",\n  \"price\": 999.99,\n  \"stockQuantity\": 150,\n  \"category\": \"Electronics\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/products/1", "host": ["{{baseUrl}}"], "path": ["api","products","1"] }
+          }
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/products/1", "host": ["{{baseUrl}}"], "path": ["api","products","1"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 2299.99,\n  \"stockQuantity\": 45\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/products/1", "host": ["{{baseUrl}}"], "path": ["api","products","1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛒 Orders",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api","orders"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 1,\n  \"shippingAddress\": \"123 Main St, Addis Ababa, Ethiopia\",\n  \"orderNotes\": \"Please handle with care\",\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"productName\": \"MacBook Pro 16\\\"\",\n      \"quantity\": 1,\n      \"unitPrice\": 2499.99\n    },\n    {\n      \"productId\": 2,\n      \"productName\": \"Nike Air Max\",\n      \"quantity\": 2,\n      \"unitPrice\": 129.99\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Get All Orders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api","orders"] }
+          }
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/orders/1", "host": ["{{baseUrl}}"], "path": ["api","orders","1"] }
+          }
+        },
+        {
+          "name": "Get Orders by User",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/orders/user/1", "host": ["{{baseUrl}}"], "path": ["api","orders","user","1"] }
+          }
+        },
+        {
+          "name": "Update Order Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/orders/1/status", "host": ["{{baseUrl}}"], "path": ["api","orders","1","status"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CONFIRMED\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "⚙️ Gateway Actuator",
+      "item": [
+        {
+          "name": "Gateway Routes",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/actuator/gateway/routes", "host": ["{{baseUrl}}"], "path": ["actuator","gateway","routes"] }
+          }
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/actuator/health", "host": ["{{baseUrl}}"], "path": ["actuator","health"] }
+          }
+        },
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/actuator/prometheus", "host": ["{{baseUrl}}"], "path": ["actuator","prometheus"] }
+          }
+        },
+        {
+          "name": "Circuit Breaker Events",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/actuator/circuitbreakers", "host": ["{{baseUrl}}"], "path": ["actuator","circuitbreakers"] }
+          }
+        },
+        {
+          "name": "🔒 Test: No Token (should get 401)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api","products"] }
+          }
+        },
+        {
+          "name": "🔒 Test: Invalid Token (should get 401)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer invalid.token.here" }],
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api","products"] }
+          }
+        }
+      ]
+    }
+  ]
+}
