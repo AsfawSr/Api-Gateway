@@ -1,0 +1,241 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  # ── Redis (Commit 17: Rate Limiting) ──────────────────────────────────────
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # password: your_redis_password  # uncomment in production
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SPRING CLOUD GATEWAY ROUTES CONFIGURATION
+  # ─────────────────────────────────────────────────────────────────────────
+  #
+  # CONCEPT: Route = Predicate + Filter + URI
+  # ─────────────────────────────────────────
+  # Each route has:
+  #   id         → unique identifier
+  #   uri        → where to forward (lb:// = load balanced via Eureka)
+  #   predicates → CONDITIONS that must match for this route to apply
+  #   filters    → TRANSFORMATIONS to apply to req/res
+  #
+  # lb://service-name = Load Balanced URI (Commit 11)
+  # This tells gateway to look up "service-name" in Eureka and
+  # use client-side load balancing (Spring Cloud LoadBalancer).
+  # ─────────────────────────────────────────────────────────────────────────
+  cloud:
+    gateway:
+      # Commit 9: Enable service discovery routing
+      discovery:
+        locator:
+          enabled: false       # Disabled – we define routes manually below
+          lower-case-service-id: true
+
+      # ── Global CORS (Commit 12) ──────────────────────────────────────────
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: false
+
+      routes:
+        # ─────────────────────────────────────────────────────────────────
+        # ROUTE 1: User Service – Auth endpoints (Public)
+        # Commit 10: Basic path-based routing
+        # Commit 11: lb:// → service discovery + load balancing
+        # ─────────────────────────────────────────────────────────────────
+        - id: user-service-auth
+          uri: lb://user-service
+          predicates:
+            # Path Predicate (Commit 10): match all /api/auth/** requests
+            - Path=/api/auth/**
+          filters:
+            # Strip nothing – forward path as-is
+            - name: RequestTracing   # Commit 14: Custom Pre-Filter
+            - name: ResponseEnrichment  # Commit 15: Custom Post-Filter
+
+        # ─────────────────────────────────────────────────────────────────
+        # ROUTE 2: User Service – Protected endpoints
+        # Commit 12: Advanced predicates – Method predicate
+        # ─────────────────────────────────────────────────────────────────
+        - id: user-service-api
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**
+            # Method Predicate (Commit 12): only match these HTTP methods
+            - Method=GET,POST,PUT,DELETE
+          filters:
+            - name: RequestTracing
+            - name: ResponseEnrichment
+            # Circuit Breaker (Commit 18): if user-service is down, use fallback
+            - name: CircuitBreaker
+              args:
+                name: userServiceCB
+                fallbackUri: forward:/fallback/user-service
+            # Retry (Commit 19): retry up to 3 times on 5xx errors
+            - name: Retry
+              args:
+                retries: 3
+                statuses: SERVICE_UNAVAILABLE
+                methods: GET
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            # Rate Limiter (Commit 17): max 20 req/sec per IP
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                key-resolver: "#{@ipKeyResolver}"
+
+        # ─────────────────────────────────────────────────────────────────
+        # ROUTE 3: Product Service
+        # ─────────────────────────────────────────────────────────────────
+        - id: product-service-api
+          uri: lb://product-service
+          predicates:
+            - Path=/api/products/**
+          filters:
+            - name: RequestTracing
+            - name: ResponseEnrichment
+            # AddRequestHeader (Commit 12): built-in filter adds header
+            - AddRequestHeader=X-Service-Name, product-service
+            # AddResponseHeader: built-in filter adds to response
+            - AddResponseHeader=X-Service-Response, product-service
+            - name: CircuitBreaker
+              args:
+                name: productServiceCB
+                fallbackUri: forward:/fallback/product-service
+            - name: Retry
+              args:
+                retries: 2
+                statuses: SERVICE_UNAVAILABLE
+                methods: GET
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+                key-resolver: "#{@ipKeyResolver}"
+
+        # ─────────────────────────────────────────────────────────────────
+        # ROUTE 4: Order Service
+        # ─────────────────────────────────────────────────────────────────
+        - id: order-service-api
+          uri: lb://order-service
+          predicates:
+            - Path=/api/orders/**
+            # Header Predicate (Commit 12): only route if this header exists
+            - Header=X-User-Name
+          filters:
+            - name: RequestTracing
+            - name: ResponseEnrichment
+            - AddRequestHeader=X-Service-Name, order-service
+            - name: CircuitBreaker
+              args:
+                name: orderServiceCB
+                fallbackUri: forward:/fallback/order-service
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                key-resolver: "#{@userKeyResolver}"
+
+        # ─────────────────────────────────────────────────────────────────
+        # ROUTE 5: Actuator endpoints for all services (no auth required)
+        # ─────────────────────────────────────────────────────────────────
+        - id: actuator-routes
+          uri: lb://user-service
+          predicates:
+            - Path=/actuator/**
+
+# ── Eureka Client (Commit 9) ───────────────────────────────────────────────
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
+# ── JWT (Commit 13) ───────────────────────────────────────────────────────
+# MUST be the same secret as user-service!
+jwt:
+  secret: dGhpcyBpcyBhIHZlcnkgbG9uZyBzZWNyZXQga2V5IGZvciBqd3QgdGVzdGluZyBwdXJwb3NlcyBvbmx5
+
+# ── Resilience4j (Commit 18-19) ───────────────────────────────────────────
+resilience4j:
+  circuitbreaker:
+    instances:
+      userServiceCB:
+        # CLOSED → OPEN if 50% of last 10 calls fail
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        # After 10 seconds in OPEN, move to HALF-OPEN
+        waitDurationInOpenState: 10s
+        # In HALF-OPEN, allow 3 test calls
+        permittedNumberOfCallsInHalfOpenState: 3
+        # Slow calls > 3s also count as failures
+        slowCallDurationThreshold: 3s
+        slowCallRateThreshold: 50
+      productServiceCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+      orderServiceCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 3
+  timelimiter:
+    instances:
+      userServiceCB:
+        timeoutDuration: 3s   # Commit 19: Timeout
+      productServiceCB:
+        timeoutDuration: 3s
+      orderServiceCB:
+        timeoutDuration: 5s
+
+# ── Actuator & Observability (Commit 20) ───────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true   # Expose gateway-specific actuator endpoints
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  # Prometheus metrics endpoint
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+# ── Logging ────────────────────────────────────────────────────────────────
+logging:
+  level:
+    com.asfaw.apigateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.gateway.route.RouteDefinitionLocator: INFO
+    io.github.resilience4j: DEBUG
