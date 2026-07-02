@@ -1,0 +1,59 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: user-service
+
+  # ── H2 In-Memory Database (default profile) ──────────────────────────────
+  datasource:
+    url: jdbc:h2:mem:userdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop  # Creates schema on startup, drops on shutdown
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+# ── JWT Configuration ─────────────────────────────────────────────────────
+# The secret must be Base64-encoded and at least 256 bits (32 bytes)
+# IMPORTANT: In production, use environment variables – never commit secrets!
+jwt:
+  secret: dGhpcyBpcyBhIHZlcnkgbG9uZyBzZWNyZXQga2V5IGZvciBqd3QgdGVzdGluZyBwdXJwb3NlcyBvbmx5
+  expiration-ms: 86400000  # 24 hours in milliseconds
+
+# ── Eureka Client ──────────────────────────────────────────────────────────
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
+# ── Actuator ──────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.asfaw.userservice: DEBUG
+    org.springframework.security: DEBUG
